@@ -149,7 +149,11 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-
+	$U/_sleep\
+	$U/_pingpong\
+	$U/_primes\
+	$U/_find\
+	$U/_xargs\
 
 ifeq ($(LAB),syscall)
 UPROGS += \
@@ -301,5 +305,7 @@ myapi.key:
 		false; \
 	fi;
 
+gdb:
+	gdb-multiarch kernel/kernel
 
 .PHONY: handin tarball tarball-pref clean grade handin-check
