@@ -97,6 +97,10 @@ exec(char *path, char **argv)
   if(copyout(pagetable, sp, (char *)ustack, (argc+1)*sizeof(uint64)) < 0)
     goto bad;
 
+  uvmunmap(p->kvmpagetable, 0, PGROUNDUP(oldsz) / PGSIZE, 0);
+  // vmprint(p->kvmpagetable);
+  copypages(pagetable, p->kvmpagetable, 0, sz); // copy pages from 0 to sz into kernel page table
+  // vmprint(p->kvmpagetable);
   // arguments to user main(argc, argv)
   // argc is returned via the system call return
   // value, which goes in a0.
@@ -116,7 +120,7 @@ exec(char *path, char **argv)
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
-  // if(p->pid==1) vmprint(p->pagetable); // print pagetable
+  if(p->pid==1) vmprint(p->pagetable); // print pagetable
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 

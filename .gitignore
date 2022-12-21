@@ -24,3 +24,4 @@ ph
 barrier
 .vscode/
 compile_*
+*.txt
