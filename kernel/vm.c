@@ -62,7 +62,7 @@ pagetable_t uvminit_kernel()
   uvmmap(uvm_p, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
   // CLINT
-  uvmmap(uvm_p, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  // uvmmap(uvm_p, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 
   // PLIC
   uvmmap(uvm_p, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
@@ -541,12 +541,6 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   return copyinstr_new(pagetable,dst,srcva,max);
 }
 
-void vmprint(pagetable_t p)
-{
-  printf("page table %p\n", (void *)p);
-  vmprint_(p, 0);
-}
-
 void vmprint_(pagetable_t p, int level)
 {
   for (int i = 0; i < 512; i++)
@@ -561,4 +555,10 @@ void vmprint_(pagetable_t p, int level)
         vmprint_((pagetable_t)PTE2PA(pte), level + 1);
     }
   }
+}
+
+void vmprint(pagetable_t p)
+{
+  printf("page table %p\n", (void *)p);
+  vmprint_(p, 0);
 }

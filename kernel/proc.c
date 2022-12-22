@@ -534,8 +534,7 @@ void scheduler(void)
         w_satp(MAKE_SATP(p->kvmpagetable));
         sfence_vma();
         swtch(&c->context, &p->context);
-        w_satp(MAKE_SATP(kernel_pagetable));
-        sfence_vma();
+        kvminithart();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
