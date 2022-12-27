@@ -64,10 +64,32 @@ argint(int n, int *ip)
 // Retrieve an argument as a pointer.
 // Doesn't check for legality, since
 // copyin/copyout will do that.
-int
-argaddr(int n, uint64 *ip)
+int argaddr(int n, uint64 *ip)
 {
   *ip = argraw(n);
+  struct proc *p = myproc();
+  if (walkaddr(p->pagetable, *ip) == 0)
+  {
+    uint64 sepc = *ip;
+    uint64 pageaddr = PGROUNDDOWN(sepc);
+    uint64 ka;
+    if (PGROUNDUP(p->trapframe->sp) - 1 >= sepc || sepc >= p->sz)
+      return -1;
+    else
+    {
+      if ((ka = (uint64)kalloc()) != 0)
+      {
+        memset((void *)ka, 0, PGSIZE);
+        if ((mappages(p->pagetable, pageaddr, PGSIZE, ka, PTE_R | PTE_W | PTE_U | PTE_X)) != 0)
+        {
+          kfree((void *)ka);
+          return -1;
+        }
+      }
+      else
+        return -1;
+    }
+  }
   return 0;
 }
 
