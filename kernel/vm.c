@@ -15,6 +15,8 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+extern struct spinlock memlink_lock;
+
 /*
  * create a direct-map page table for the kernel.
  */
@@ -299,6 +301,40 @@ uvmfree(pagetable_t pagetable, uint64 sz)
   freewalk(pagetable);
 }
 
+// fake uvmcopy but copy on write
+int uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 sz)
+{
+  pte_t *pte;
+  uint64 pa;
+  uint flags;
+  for (uint64 i = 0; i < sz; i += PGSIZE)
+  {
+    if ((pte = walk(old, i, 0)) == 0)
+      panic("unuvmapped pages in uvmcopy");
+    if ((*pte & PTE_V) == 0)
+      panic("unvalid pages in uvmcopy");
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+    if (*pte & PTE_W)
+    {  
+      flags = (flags & (~PTE_W)) | PTE_F;
+      *pte = (*pte & (~PTE_W)) | PTE_F;
+    }
+
+    if (mappages(new, i, PGSIZE, pa, flags) != 0)
+    {
+      uvmunmap(new, 0, i / PGSIZE, 1);
+      return -1;
+    }
+
+    char *links=memlinks(pa);
+
+    acquire(&memlink_lock);
+    (*links)++;
+    release(&memlink_lock);
+  }
+  return 0;
+}
 // Given a parent process's page table, copy
 // its memory into a child's page table.
 // Copies both the page table and the
@@ -359,6 +395,41 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
+    
+    if (va0 >= MAXVA)
+      return -1;
+    pte_t *pte = walk(pagetable, va0, 0);
+    if (pte == 0 || (*pte & PTE_V) == 0)
+      return -1;
+    if(*pte & PTE_F)
+    {
+      uint64 pa=PTE2PA(*pte);
+      uint flags=PTE_FLAGS(*pte);
+      char *links=memlinks(pa);
+
+      if ((*links) > 1)
+      {
+        uint64 mem;
+        if ((mem = (uint64)kalloc()) == 0)
+          return -1;
+        else
+        {
+          *pte &= (~PTE_V);
+          memmove((void *)mem, (void *)pa, PGSIZE);
+          if (mappages(pagetable, va0, PGSIZE, mem, (flags | PTE_W) & (~PTE_F)) != 0)
+          {
+            kfree((void *)mem);
+            *pte |= PTE_V;
+            return -1;
+          }
+          kfree((void *)pa0);
+          pa0 = mem;
+        }
+      }
+      else  
+        *pte = (*pte | PTE_W) & (~ PTE_F);
+    }
+
     if(pa0 == 0)
       return -1;
     n = PGSIZE - (dstva - va0);

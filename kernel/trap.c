@@ -15,6 +15,7 @@ extern char trampoline[], uservec[], userret[];
 void kernelvec();
 
 extern int devintr();
+extern struct spinlock memlink_lock;
 
 void
 trapinit(void)
@@ -46,11 +47,12 @@ usertrap(void)
   w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
+  uint64 scause = r_scause();
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
-  if(r_scause() == 8){
+  if(scause == 8){
     // system call
 
     if(p->killed)
@@ -67,7 +69,52 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  }
+  else if (scause == 13 || scause == 15)
+  {
+    uint64 vaddr = r_stval();
+    uint64 pageaddr = PGROUNDDOWN(vaddr);
+    pte_t *pte;
+    if (vaddr >= p->sz)
+    {
+      p->killed = 1;
+      exit(-1);
+    }
+    if ((pte = walk(p->pagetable, vaddr, 0)) == 0 || (*pte & PTE_V) == 0)
+    {
+      p->killed = 1;
+      exit(-1);
+    }
+
+    uint64 pa = PTE2PA(*pte);
+    uint flags = PTE_FLAGS(*pte);
+    char *links = memlinks(pa);
+
+    if ((*links) == 1 && (flags & PTE_F))
+      *pte = (*pte | PTE_W) & (~PTE_F);
+    else if (*links >= 2)
+    {
+      uint64 mem;
+      if ((mem = (uint64)kalloc()) == 0)
+        p->killed = 1;
+      else
+      {
+        memmove((void *)mem, (void *)pa, PGSIZE);
+        *pte &= (~PTE_V);
+        if (mappages(p->pagetable, pageaddr, PGSIZE, mem, (flags | PTE_W) & (~PTE_F)) != 0)
+        {
+          kfree((void *)mem);
+          p->killed = 1;
+          exit(-1);
+        }
+
+        kfree((void *)pa);
+      }
+    }
+    else
+      p->killed = 1;
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
