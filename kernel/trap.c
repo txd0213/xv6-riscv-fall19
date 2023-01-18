@@ -3,8 +3,12 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "defs.h"  
 #include "proc.h"
-#include "defs.h"
+#include "fcntl.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -29,6 +33,56 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+int handler(int addr, int scause)
+{
+  struct proc *p = myproc();
+  int i;
+  
+  for (i = 0; i < NVMA; i++)
+  {
+    if (p->VMA[i].f != 0 && p->VMA[i].vaddr <= addr && p->VMA[i].vaddr + p->VMA[i].length > addr)
+      break;
+  }
+  if (i == NVMA)
+    return -1;
+  int flags = PTE_U;
+  if (p->VMA[i].prot & PROT_WRITE)
+    flags |= PTE_W;
+  if (p->VMA[i].prot & PROT_READ)
+    flags |= PTE_R;
+  if (p->VMA[i].prot & PROT_EXEC)
+    flags |= PTE_X;
+
+  uint64 pa = (uint64)kalloc();
+  if (pa == 0)
+    return -1;
+  memset((void *)pa, 0, PGSIZE);
+
+  struct file *vfile = p->VMA[i].f;
+  if (scause == 13 && vfile->readable == 0)
+    return -1;
+  if (scause == 15 && vfile->writable == 0)
+    return -1;
+
+  ilock(vfile->ip);
+  uint offfile = p->VMA[i].off + PGROUNDDOWN(addr - p->VMA[i].vaddr);
+  if (readi(vfile->ip, 0, pa, offfile, PGSIZE) == 0)
+  {
+    kfree((void *)pa);
+    iunlock(vfile->ip);
+    return -1;
+  }
+  iunlock(vfile->ip);
+
+  if (mappages(p->pagetable, PGROUNDDOWN(addr), PGSIZE, pa, flags) != 0)
+  {
+    kfree((void *)pa);
+    return -1;
+  }
+
+  return 0;
+}
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -49,8 +103,10 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
+
+  uint64 scause=r_scause();
   
-  if(r_scause() == 8){
+  if(scause == 8){
     // system call
 
     if(p->killed)
@@ -67,7 +123,21 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } 
+  else if (scause == 13 || scause == 15)
+  {
+#ifdef LAB_MMAP
+    uint64 sepc = r_stval();
+    if (PGROUNDUP(p->trapframe->sp) < sepc + 1 && sepc < p->sz)
+    {
+      if (handler(sepc, scause) != 0)
+        p->killed = 1;
+    }
+    else
+      p->killed = 1;
+  }
+#endif
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;

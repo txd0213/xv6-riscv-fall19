@@ -16,6 +16,8 @@
 #include "file.h"
 #include "fcntl.h"
 
+#define err 0xffffffffffffffff
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -482,5 +484,91 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+
+uint64 sys_mmap(void)
+{
+  int length, off;
+  int prot, flags;
+  struct file *f;
+
+  if (argint(1, &length) < 0 || argint(2, &prot) < 0 || argint(3, &flags) < 0 || argfd(4, 0, &f) < 0 || argint(5, &off) < 0)
+    return err;
+
+  if (length < 0 || off != 0)
+    return err;
+
+  if(f->writable == 0 && (prot & PROT_WRITE) != 0 && flags == MAP_SHARED)
+    return err;
+
+  struct proc *p = myproc();
+
+  if (p->sz + length > MAXVA)
+    return err;
+
+  for (int i = 0; i < NVMA; i++)
+  {
+    if (p->VMA[i].f == 0)
+    {
+      filedup(f);
+
+      p->VMA[i].f = f;
+      p->VMA[i].flags = flags;
+      p->VMA[i].length = length;
+      p->VMA[i].off = off;
+      p->VMA[i].prot = prot;
+
+      p->VMA[i].vaddr = p->sz;
+      p->sz += length;
+      return p->VMA[i].vaddr;
+    }
+  }
+  return err;
+}
+
+uint64 sys_munmap(void)
+{
+
+  uint64 addr;
+  int length;
+  if (argaddr(0, &addr) < 0 || argint(1, &length) < 0)
+    return -1;
+
+  struct proc *p = myproc();
+  int i;
+  for (i = 0; i < NVMA; i++)
+  {
+    if (p->VMA[i].f != 0 && p->VMA[i].vaddr <= addr && p->VMA[i].vaddr + p->VMA[i].length > addr)
+      break;
+  }
+
+  if (i == NVMA)
+    return -1;
+
+  struct file *vfile = p->VMA[i].f;
+
+  if (addr == p->VMA[i].vaddr)
+  {
+    p->VMA[i].vaddr += length;
+    p->VMA[i].length -= length;
+  }
+  else if (addr + length == p->VMA[i].vaddr + p->VMA[i].length)
+    p->VMA[i].length -= length;
+  else
+    return -1;
+
+  if (p->VMA[i].flags == MAP_SHARED && (p->VMA[i].prot & PROT_WRITE) != 0)
+    filewrite(vfile, addr, length);
+
+  uvmunmap(p->pagetable, addr, length / PGSIZE, 1);
+
+  if (p->VMA[i].length <= 0)
+  {
+    fileclose(p->VMA[i].f);
+    p->VMA[i].f = 0;
+  }
+
   return 0;
 }
