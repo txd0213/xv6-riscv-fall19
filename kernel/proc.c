@@ -125,6 +125,7 @@ found:
   p->pid = allocpid();
   p->state = USED;
   p->ctime = ticks;
+  p->priority = 2;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -170,6 +171,11 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->ctime = 0;
+  p->retime = 0;
+  p->rutime = 0;
+  p->stime = 0;
+  p->priority = 0;
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -242,6 +248,8 @@ userinit(void)
   // and data into it.
   uvmfirst(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
+  p->ctime = ticks;
+  p->priority = 2;
 
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
@@ -296,6 +304,8 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->ctime = ticks;
+  np->priority = p->priority;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -447,8 +457,9 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  
   c->proc = 0;
+  
+  #ifdef DEFAULT
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
@@ -470,6 +481,43 @@ scheduler(void)
       release(&p->lock);
     }
   }
+  #endif
+
+  #ifdef FCFS
+  int min_ctime = __INT_MAX__;
+  struct proc* min_p = 0;
+  for(;;){
+    intr_on();
+
+    // only read so don't need accquire
+    for(p = proc; p < &proc[NPROC]; p++){
+      if(p->state == RUNNABLE && p->ctime < min_ctime){
+        min_p = p;
+        min_ctime = p->ctime;
+      }
+    }
+
+    if(min_ctime != __INT_MAX__){
+      acquire(&min_p->lock);
+      min_p->state = RUNNING;
+      c->proc = min_p;
+
+      swtch(&c->context, &min_p->context);
+
+      c->proc = 0;
+      release(&min_p->lock);
+    }
+  }
+
+  #endif
+
+  #ifdef SML
+
+  #endif
+
+  #ifdef DML
+
+  #endif
 }
 
 // Switch to scheduler.  Must hold only p->lock

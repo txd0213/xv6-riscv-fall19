@@ -145,6 +145,16 @@ getcmd(char *buf, int nbuf)
 int
 main(void)
 {
+  #ifdef DEFAULT
+  printf("Schedule using default\n");
+  #elif FCFS
+  printf("Schedule using FCFS\n");
+  #elif SML
+  printf("Schedule using SML\n");
+  #elif DML
+  printf("Schedule using DML\n");
+  #endif
+  
   static char buf[100];
   int fd;
 

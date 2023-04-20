@@ -109,4 +109,6 @@ struct proc {
   int stime;                   // Process sleeping
   int retime;                  // Process runnbale
   int rutime;                  // Process running
+
+  int priority;                // Set different priority for processes
 };
