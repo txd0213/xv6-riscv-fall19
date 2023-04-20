@@ -89,3 +89,18 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// return pid if success or -1 when failed
+uint64 sys_wait2()
+{
+  uint64 retime, rutime, stime;
+  argaddr(0, &retime);
+  argaddr(1, &rutime);
+  argaddr(2, &stime);
+  int pid = sys_wait();
+  struct proc* p= myproc();
+  copyout(p->pagetable, retime, (char*)&(p->retime),sizeof(int));
+  copyout(p->pagetable, rutime, (char*)&(p->rutime),sizeof(int));
+  copyout(p->pagetable, stime, (char*)&(p->stime),sizeof(int));
+  return pid;
+}

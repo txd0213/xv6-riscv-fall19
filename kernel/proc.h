@@ -104,4 +104,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  int ctime;                   // Process creation
+  int stime;                   // Process sleeping
+  int retime;                  // Process runnbale
+  int rutime;                  // Process running
 };

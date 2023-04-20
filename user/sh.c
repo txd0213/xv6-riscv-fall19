@@ -167,7 +167,15 @@ main(void)
     }
     if(fork1() == 0)
       runcmd(parsecmd(buf));
-    wait(0);
+    // wait(0);
+    else
+    {
+      int retime, rutime, stime;
+      int pid = wait2(&retime, &rutime, &stime);
+      if(pid != -1)
+        fprintf(1, "pid:%d retime:%d rutime:%d stime:%d\n", pid, retime, rutime, stime);
+    }
+
   }
   exit(0);
 }

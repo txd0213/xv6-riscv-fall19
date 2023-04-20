@@ -50,6 +50,10 @@ endif
 
 QEMU = qemu-system-riscv64
 
+ifndef SCHEDULE
+SCHEDULE := DEFAULT
+endif
+
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
@@ -70,6 +74,8 @@ endif
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
+
+CFLAGS += -D $(SCHEDULE)
 
 LDFLAGS = -z max-page-size=4096
 

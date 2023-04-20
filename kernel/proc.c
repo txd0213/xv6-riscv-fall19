@@ -124,6 +124,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->ctime = ticks;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -679,5 +680,29 @@ procdump(void)
       state = "???";
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
+  }
+}
+
+void updatestatistics()
+{
+  struct proc* p;
+  for(p = proc; p < &proc[NPROC]; p++)
+  {
+    // acquire(&p->lock);
+    switch (p->state)
+    {
+    case RUNNING:
+      p->rutime++;
+      break;
+    case RUNNABLE:
+      p->retime++;
+      break;    
+    case SLEEPING:
+      p->stime++;
+      break;
+    default:
+      break;
+    }
+    // release(&p->lock);
   }
 }
