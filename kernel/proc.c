@@ -125,7 +125,11 @@ found:
   p->pid = allocpid();
   p->state = USED;
   p->ctime = ticks;
-  p->priority = 2;
+  // every progress are forked from init/sh
+  // p->priority = 2; 
+  p->retime = 0;
+  p->rutime = 0;
+  p->stime = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -304,7 +308,6 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
-  np->ctime = ticks;
   np->priority = p->priority;
 
   // copy saved user registers.
@@ -484,9 +487,9 @@ scheduler(void)
   #endif
 
   #ifdef FCFS
-  int min_ctime = __INT_MAX__;
-  struct proc* min_p = 0;
   for(;;){
+    int min_ctime = __INT_MAX__;
+    struct proc* min_p = 0;
     intr_on();
 
     // only read so don't need accquire
@@ -534,6 +537,24 @@ scheduler(void)
   #endif
 
   #ifdef DML
+  for(;;){
+    intr_on();
+    for(int priority = 3; priority >= 1; priority--){
+      for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->state == RUNNABLE && p->priority == priority){
+          p->state = RUNNING;
+          p->tickcounter = 0;
+          c->proc = p;
+
+          swtch(&c->context, &p->context);
+
+          c->proc = 0;
+        }
+        release(&p->lock);
+      }
+    }
+  }
 
   #endif
 }
@@ -640,6 +661,10 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+
+        #ifdef DML
+        p->priority = 3;
+        #endif
       }
       release(&p->lock);
     }

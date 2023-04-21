@@ -154,6 +154,10 @@ kerneltrap()
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING && quant++ == QUANTA){
     quant = 0;
+    #ifdef DML
+    struct proc* p = myproc();
+    p->priority = p->priority == 1 ? 1 : p->priority - 1;
+    #endif
     yield();
   }
 

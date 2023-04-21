@@ -117,3 +117,9 @@ uint64 sys_setprio()
   release(&p->lock);
   return 0;
 }
+
+uint64 sys_yield()
+{
+  yield();
+  return 0;
+}

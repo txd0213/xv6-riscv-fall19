@@ -103,6 +103,7 @@ extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_wait2(void);
 extern uint64 sys_setprio(void);
+extern uint64 sys_yield(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -130,6 +131,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_wait2]   sys_wait2,
 [SYS_setprio] sys_setprio,
+[SYS_yield]   sys_yield,
 };
 
 void

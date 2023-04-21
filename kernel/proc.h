@@ -111,4 +111,8 @@ struct proc {
   int rutime;                  // Process running
 
   int priority;                // Set different priority for processes
+
+  #ifdef DML
+  int tickcounter;              // For decrease priority
+  #endif
 };
