@@ -513,6 +513,24 @@ scheduler(void)
 
   #ifdef SML
 
+  for(;;){
+    intr_on();
+    for(int priority = 3; priority >= 1; priority--){
+      for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->state == RUNNABLE && p->priority == priority){
+          p->state = RUNNING;
+          c->proc = p;
+
+          swtch(&c->context, &p->context);
+
+          c->proc = 0;
+        }
+        release(&p->lock);
+      }
+    }
+  }
+
   #endif
 
   #ifdef DML

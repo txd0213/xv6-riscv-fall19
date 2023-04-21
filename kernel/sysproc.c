@@ -104,3 +104,16 @@ uint64 sys_wait2()
   copyout(p->pagetable, stime, (char*)&(p->stime),sizeof(int));
   return pid;
 }
+
+uint64 sys_setprio()
+{
+  int priority;
+  argint(0, &priority);
+  if(priority < 1 || priority > 3)
+    return -1;
+  struct proc* p = myproc();
+  acquire(&p->lock);
+  p->priority = priority;
+  release(&p->lock);
+  return 0;
+}
